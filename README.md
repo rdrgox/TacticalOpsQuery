@@ -29,7 +29,7 @@ GET /server-info?ip=10.10.10.10&port=1234
   "adminEmail": "string",
   "password": "string"
 }
-
+```
 ### Status:
 GET /status?ip=10.10.10.10&port=1234
 
