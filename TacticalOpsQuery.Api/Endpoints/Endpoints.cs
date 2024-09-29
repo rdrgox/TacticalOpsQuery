@@ -7,9 +7,9 @@ internal static class Endpoints
 {
     internal static WebApplication AddEndpoints(this WebApplication app)
     {
-        app.MapGet("/server-info", async (IQueryUdpService queryService, string ip, int port) =>
+        app.MapGet("/server-info", async (IQueryUdpService queryService, string ip, int queryPort, int timeOut) =>
         {
-            var serverInfo = await queryService.QueryServerInfoAsync(ip, port);
+            var serverInfo = await queryService.QueryServerInfoAsync(ip, queryPort, timeOut);
             return serverInfo != null ? Results.Ok(serverInfo) : Results.StatusCode(500);
         })
         .WithName("GetServerInfo")
@@ -18,9 +18,9 @@ internal static class Endpoints
         .Produces(StatusCodes.Status500InternalServerError)
         .WithOpenApi();
 
-        app.MapGet("/players", async (IQueryUdpService queryService, string ip, int port) =>
+        app.MapGet("/players", async (IQueryUdpService queryService, string ip, int queryPort, int timeOut) =>
         {
-            var players = await queryService.QueryPlayersAsync(ip, port);
+            var players = await queryService.QueryPlayersAsync(ip, queryPort, timeOut);
             return players != null ? Results.Ok(players) : Results.StatusCode(500);
         })
         .WithName("GetPlayers")
@@ -29,9 +29,9 @@ internal static class Endpoints
         .Produces(StatusCodes.Status500InternalServerError)
         .WithOpenApi();
 
-        app.MapGet("/status", async (IQueryUdpService queryService, string ip, int port) =>
+        app.MapGet("/status", async (IQueryUdpService queryService, string ip, int queryPort, int timeOut) =>
         {
-            var status = await queryService.QueryStatusAsync(ip, port);
+            var status = await queryService.QueryStatusAsync(ip, queryPort, timeOut);
             return status != null ? Results.Ok(status) : Results.StatusCode(500);
         })
         .WithName("GetStatus")
@@ -40,9 +40,9 @@ internal static class Endpoints
         .Produces(StatusCodes.Status500InternalServerError)
         .WithOpenApi();
 
-        app.MapGet("/team-info", async (IQueryUdpService queryService, string ip, int port) =>
+        app.MapGet("/team-info", async (IQueryUdpService queryService, string ip, int queryPort, int timeOut) =>
         {
-            var result = await queryService.QueryTeamsAsync(ip, port);
+            var result = await queryService.QueryTeamsAsync(ip, queryPort, timeOut);
             return result != null ? Results.Ok(result) : Results.StatusCode(500);
         })
         .WithName("GetTeams")

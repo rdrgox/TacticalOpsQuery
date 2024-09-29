@@ -33,7 +33,10 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options => {
+        options.InjectStylesheet("/swagger-ui/style.css");
+        options.DocumentTitle = "Api LCTO";
+    });
 }
 else
 {
@@ -42,10 +45,13 @@ else
     {
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
         options.RoutePrefix = string.Empty;
+        options.InjectStylesheet("/swagger-ui/style.css");
+        options.DocumentTitle = "Api LCTO";
     });
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 
 app.AddEndpoints();
 

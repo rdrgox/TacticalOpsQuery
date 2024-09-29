@@ -6,74 +6,123 @@ namespace TacticalOpsQuery.Api.Services;
 
 public class QueryUdpService : IQueryUdpService
 {
-    public async Task<List<Player>?> QueryPlayersAsync(string serverIP, int queryPort)
+    private const int MaxRetries = 3;
+
+    public async Task<List<Player>?> QueryPlayersAsync(string serverIP, int queryPort, int timeOut)
     {
-        using (var udpClient = new UdpClient())
+        int timeOutInMS = timeOut * 1000;
+
+        for (int attempt = 1; attempt <= MaxRetries; attempt++)
         {
-            try
+            using (var udpClient = new UdpClient())
             {
-                udpClient.Connect(serverIP, queryPort);
+                try
+                {
+                    udpClient.Connect(serverIP, queryPort);
+                    udpClient.Client.ReceiveTimeout = timeOutInMS;
 
-                // Lógica para consultar lista de jugadores
-                byte[] playersCommand = Encoding.UTF8.GetBytes("\\players\\");
-                await udpClient.SendAsync(playersCommand, playersCommand.Length);
+                    // Lógica para consultar lista de jugadores
+                    byte[] playersCommand = Encoding.UTF8.GetBytes("\\players\\");
+                    await udpClient.SendAsync(playersCommand, playersCommand.Length);
 
-                var playersResult = await udpClient.ReceiveAsync();
-                string playersResponse = Encoding.UTF8.GetString(playersResult.Buffer);
+                    var receiveTask = udpClient.ReceiveAsync();
 
-                return ParsePlayers(playersResponse);
-            }
-            catch (SocketException ex)
-            {
-                // Manejar excepción específica de socket
-                Console.WriteLine($"Error de socket: {ex.Message}");
-                return null;
-            }
-            catch (Exception ex)
-            {
-                // Manejar otras excepciones de manera genérica
-                Console.WriteLine($"Error: {ex.Message}");
-                return null;
+                    if (await Task.WhenAny(receiveTask, Task.Delay(timeOutInMS)) == receiveTask)
+                    {
+                        //var playersResult = await udpClient.ReceiveAsync();
+                        var playersResult = await receiveTask;
+                        string playersResponse = Encoding.UTF8.GetString(playersResult.Buffer);
+                        return ParsePlayers(playersResponse);
+                    }
+                    else
+                    {
+                        throw new TimeoutException($"No response from server on attempt {attempt}.");
+                    }
+                }
+                catch (TimeoutException ex)
+                {
+                    Console.WriteLine($"Timeout: {ex.Message}");
+                    if (attempt == MaxRetries)
+                    {
+                        Console.WriteLine("Servidor no responde después de varios intentos.");
+                        throw new Exception("Servidor no responde.");
+                    }
+                }
+                catch (SocketException ex)
+                {
+                    Console.WriteLine($"Error de socket: {ex.Message}");
+                    return null;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error: {ex.Message}");
+                    return null;
+                }
             }
         }
+        return null;
     }
 
-    public async Task<ServerInfo?> QueryServerInfoAsync(string serverIP, int queryPort)
+    public async Task<ServerInfo?> QueryServerInfoAsync(string serverIP, int queryPort, int timeOut)
     {
-        using (var udpClient = new UdpClient())
+        int timeOutInMS = timeOut * 1000;
+
+        for (int attempt = 1; attempt <= MaxRetries; attempt++)
         {
-            try
+            using (var udpClient = new UdpClient())
             {
-                udpClient.Connect(serverIP, queryPort);
+                try
+                {
+                    udpClient.Connect(serverIP, queryPort);
+                    udpClient.Client.ReceiveTimeout = timeOutInMS;
 
-                // Lógica para consultar información del servidor
-                byte[] infoCommand = Encoding.UTF8.GetBytes("\\status\\");
-                await udpClient.SendAsync(infoCommand, infoCommand.Length);
+                    // Lógica para consultar información del servidor
+                    byte[] infoCommand = Encoding.UTF8.GetBytes("\\status\\");
+                    await udpClient.SendAsync(infoCommand, infoCommand.Length);
 
-                var infoResult = await udpClient.ReceiveAsync();
-                string infoResponse = Encoding.UTF8.GetString(infoResult.Buffer);
+                    var receiveTask = udpClient.ReceiveAsync();
 
-                return ParseServerInfo(infoResponse);
-            }
-            catch (SocketException ex)
-            {
-                // Manejar excepción específica de socket
-                Console.WriteLine($"Error de socket: {ex.Message}");
-                return null;
-            }
-            catch (Exception ex)
-            {
-                // Manejar otras excepciones de manera genérica
-                Console.WriteLine($"Error: {ex.Message}");
-                return null;
+                    if (await Task.WhenAny(receiveTask, Task.Delay(timeOutInMS)) == receiveTask)
+                    {
+                        var infoResult = await receiveTask;
+                        string infoResponse = Encoding.UTF8.GetString(infoResult.Buffer);
+                        return ParseServerInfo(infoResponse);
+                    }
+                    else
+                    {
+                        throw new TimeoutException($"No response from server on attempt {attempt}.");
+                    }
+                }
+                catch (TimeoutException ex)
+                {
+                    Console.WriteLine($"Timeout: {ex.Message}");
+                    if (attempt == MaxRetries)
+                    {
+                        Console.WriteLine("Servidor no responde después de varios intentos.");
+                        throw new Exception("Servidor no responde.");
+                    }
+                }
+                catch (SocketException ex)
+                {
+                    // Manejar excepción específica de socket
+                    Console.WriteLine($"Error de socket: {ex.Message}");
+                    return null;
+                }
+                catch (Exception ex)
+                {
+                    // Manejar otras excepciones de manera genérica
+                    Console.WriteLine($"Error: {ex.Message}");
+                    return null;
+                }
             }
         }
+        return null;
     }
 
-    public async Task<ServerStatus?> QueryStatusAsync(string serverIP, int queryPort)
+    public async Task<ServerStatus?> QueryStatusAsync(string serverIP, int queryPort, int timeOut)
     {
-        var serverInfoTask = QueryServerInfoAsync(serverIP, queryPort);
-        var playersTask = QueryPlayersAsync(serverIP, queryPort);
+        var serverInfoTask = QueryServerInfoAsync(serverIP, queryPort, timeOut);
+        var playersTask = QueryPlayersAsync(serverIP, queryPort, timeOut);
 
         await Task.WhenAll(serverInfoTask, playersTask);
 
@@ -92,10 +141,10 @@ public class QueryUdpService : IQueryUdpService
         return null;
     }
 
-    public async Task<List<TeamInfo>?> QueryTeamsAsync(string serverIP, int queryPort)
+    public async Task<List<TeamInfo>?> QueryTeamsAsync(string serverIP, int queryPort, int timeOut)
     {
-        var serverInfo = await QueryServerInfoAsync(serverIP, queryPort);
-        var players = await QueryPlayersAsync(serverIP, queryPort);
+        var serverInfo = await QueryServerInfoAsync(serverIP, queryPort, timeOut);
+        var players = await QueryPlayersAsync(serverIP, queryPort, timeOut);
 
         if (serverInfo == null || players == null)
         {

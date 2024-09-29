@@ -1,0 +1,24 @@
+﻿body {
+    background-color: #f2f2f2 !important;
+}
+
+.swagger-ui img {
+    content: url(../swagger-ui/resources/logo.png);
+    width: 140px;
+    height: 40px;
+}
+
+div.topbar {
+    background-image: linear-gradient(to right, #f2f2f2, #cbcad3, #a4a4b5, #7c8098, #555e7c, #434f70, #2f4164, #193458, #183458, #173359, #153359, #143259) !important;
+    color: #f2f2f2 !important;
+}
+
+h2,
+h3 {
+    color: #8a4e5a !important;
+}
+
+
+.opblock-summary-get > button > span.opblock-summary-method {
+    background-color: #717788 !important;
+}
