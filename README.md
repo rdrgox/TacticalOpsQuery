@@ -88,7 +88,18 @@ GET /players?ip=10.10.10.10&port=1234
 
 ```json
 {
-  "name": "player_name",
+  "name": "player_name_0",
+  "frags": 0,
+  "deaths": 0,
+  "score": 0,
+  "ping": 0,
+  "team": 0,
+  "mesh": "string",
+  "skin": "string",
+  "health": 0
+},
+{
+  "name": "player_name_1",
   "frags": 0,
   "deaths": 0,
   "score": 0,
