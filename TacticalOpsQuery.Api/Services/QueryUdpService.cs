@@ -1,18 +1,19 @@
 ﻿using System.Net.Sockets;
 using System.Text;
+using TacticalOpsQuery.Api.Data;
 using TacticalOpsQuery.Api.Models;
 
 namespace TacticalOpsQuery.Api.Services;
 
-public class QueryUdpService : IQueryUdpService
+public class QueryUdpService(DataContext context) : IQueryUdpService
 {
     private const int MaxRetries = 3;
 
-    public async Task<List<Player>?> QueryPlayersAsync(string serverIP, int queryPort, int timeOut)
+    public async Task<List<Player>?> QueryPlayersAsync(string serverIp, int queryPort, int timeOut)
     {
-        int timeOutInMS = timeOut * 1000;
+        var timeOutInMs = timeOut * 1000;
         var playersResponse = new StringBuilder();
-        bool receiving = true;
+        var receiving = true;
 
         for (int attempt = 1; attempt <= MaxRetries; attempt++)
         {
@@ -20,8 +21,8 @@ public class QueryUdpService : IQueryUdpService
             {
                 try
                 {
-                    udpClient.Connect(serverIP, queryPort);
-                    udpClient.Client.ReceiveTimeout = timeOutInMS;
+                    udpClient.Connect(serverIp, queryPort + 1);
+                    udpClient.Client.ReceiveTimeout = timeOutInMs;
 
                     byte[] playersCommand = Encoding.UTF8.GetBytes("\\players\\");
                     await udpClient.SendAsync(playersCommand, playersCommand.Length);
@@ -29,15 +30,15 @@ public class QueryUdpService : IQueryUdpService
                     while (receiving)
                     {
                         var receiveTask = udpClient.ReceiveAsync();
-                        var delayTask = Task.Delay(timeOutInMS);
+                        var delayTask = Task.Delay(timeOutInMs);
                         var completedTask = await Task.WhenAny(receiveTask, delayTask);
 
                         if (completedTask == receiveTask)
                         {
                             var playersResult = await receiveTask;
-                            string responsePart = Encoding.UTF8.GetString(playersResult.Buffer);
+                            //string responsePart = Encoding.UTF8.GetString(playersResult.Buffer);
+                            string responsePart = Encoding.GetEncoding(1252).GetString(playersResult.Buffer);
 
-                            // Agrega la parte recibida a la respuesta completa
                             playersResponse.Append(responsePart);
 
                             // Determina si es el último paquete de la respuesta
@@ -77,86 +78,83 @@ public class QueryUdpService : IQueryUdpService
                 }
             }
         }
+
         return null;
     }
 
-    public async Task<ServerInfo?> QueryServerInfoAsync(string serverIP, int queryPort, int timeOut)
+    public async Task<ServerInfo?> QueryServerInfoAsync(string serverIp, int queryPort, int timeOut)
     {
-        int timeOutInMS = timeOut * 1000;
+        var baseTimeoutMs = timeOut * 1000;
         var serverResponse = new StringBuilder();
-        bool receiving = true;
+        //var receiving = true;
 
-        for (int attempt = 1; attempt <= MaxRetries; attempt++)
+        for (var attempt = 1; attempt <= MaxRetries; attempt++)
         {
-            using (var udpClient = new UdpClient())
+            using var udpClient = new UdpClient();
+            try
             {
-                try
+                
+                udpClient.Connect(serverIp, queryPort + 1);
+
+                // Medimos latencia
+                var infoCommand = Encoding.UTF8.GetBytes("\\status\\");
+                var startTime = DateTime.UtcNow;
+                await udpClient.SendAsync(infoCommand, infoCommand.Length);
+
+                var receiving = true;
+                long latencyMs = -1;
+                
+                
+                while (receiving)
                 {
-                    udpClient.Connect(serverIP, queryPort);
-                    udpClient.Client.ReceiveTimeout = timeOutInMS;
+                    // Timeout adaptativo: 3x latencia o timeout base
+                    var timeoutMs = latencyMs > 0 ? (int)(latencyMs * 3) : baseTimeoutMs;
+                    udpClient.Client.ReceiveTimeout = timeoutMs;
 
-                    // Enviar el comando para obtener la información del servidor
-                    byte[] infoCommand = Encoding.UTF8.GetBytes("\\status\\");
-                    await udpClient.SendAsync(infoCommand, infoCommand.Length);
+                    var receiveTask = udpClient.ReceiveAsync();
+                    var delayTask = Task.Delay(timeoutMs);
+                    var completedTask = await Task.WhenAny(receiveTask, delayTask);
 
-                    while (receiving)
+                    if (completedTask == receiveTask)
                     {
-                        var receiveTask = udpClient.ReceiveAsync();
-                        var delayTask = Task.Delay(timeOutInMS);
-                        var completedTask = await Task.WhenAny(receiveTask, delayTask);
+                        var infoResult = await receiveTask;
+                        if (latencyMs < 0)
+                            latencyMs = (long)(DateTime.UtcNow - startTime).TotalMilliseconds;
+                        
+                        //string responsePart = Encoding.UTF8.GetString(infoResult.Buffer);
+                        string responsePart = Encoding.GetEncoding(1252).GetString(infoResult.Buffer);
+                        serverResponse.Append(responsePart);
 
-                        if (completedTask == receiveTask)
-                        {
-                            var infoResult = await receiveTask;
-                            string responsePart = Encoding.UTF8.GetString(infoResult.Buffer);
-
-                            // Agregar la parte recibida a la respuesta completa
-                            serverResponse.Append(responsePart);
-
-                            // Si contiene 'final', terminamos la recepción
-                            if (responsePart.Contains("\\final\\"))
-                            {
-                                receiving = false;
-                            }
-                        }
-                        else
-                        {
-                            // Timeout, asume que no hay más paquetes
+                        if (responsePart.Contains("\\final\\"))
                             receiving = false;
-                        }
                     }
-
-                    // Procesa la respuesta completa después de recibir todos los paquetes
-                    return ParseServerInfo(serverResponse.ToString());
-                }
-                catch (TimeoutException ex)
-                {
-                    Console.WriteLine($"Timeout: {ex.Message}");
-                    if (attempt == MaxRetries)
+                    else
                     {
-                        Console.WriteLine("Servidor no responde después de varios intentos.");
-                        throw new Exception("Servidor no responde.");
+                        // Timeout, asumimos fin de respuesta
+                        receiving = false;
                     }
                 }
-                catch (SocketException ex)
-                {
-                    Console.WriteLine($"Error de socket: {ex.Message}");
-                    return null;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error: {ex.Message}");
-                    return null;
-                }
+
+                var info = ParseServerInfo(serverResponse.ToString());
+                info.LatencyMs = latencyMs;
+                return info;
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Intento {attempt} fallido: {ex.Message}");
+                if (attempt == MaxRetries)
+                    return null;
+            }
+            
         }
+
         return null;
     }
 
-    public async Task<ServerStatus?> QueryStatusAsync(string serverIP, int queryPort, int timeOut)
+    public async Task<ServerStatus?> QueryStatusAsync(string serverIp, int queryPort, int timeOut)
     {
-        var serverInfoTask = QueryServerInfoAsync(serverIP, queryPort, timeOut);
-        var playersTask = QueryPlayersAsync(serverIP, queryPort, timeOut);
+        var serverInfoTask = QueryServerInfoAsync(serverIp, queryPort, timeOut);
+        var playersTask = QueryPlayersAsync(serverIp, queryPort, timeOut);
 
         await Task.WhenAll(serverInfoTask, playersTask);
 
@@ -175,21 +173,21 @@ public class QueryUdpService : IQueryUdpService
         return null;
     }
 
-    public async Task<List<TeamInfo>?> QueryTeamsAsync(string serverIP, int queryPort, int timeOut)
+    public async Task<List<TeamInfo>> QueryTeamsAsync(string serverIp, int queryPort, int timeOut)
     {
-        var serverInfo = await QueryServerInfoAsync(serverIP, queryPort, timeOut);
-        var players = await QueryPlayersAsync(serverIP, queryPort, timeOut);
+        var serverInfo = await QueryServerInfoAsync(serverIp, queryPort, timeOut);
+        var players = await QueryPlayersAsync(serverIp, queryPort, timeOut);
 
         if (serverInfo == null || players == null)
         {
-            return null;
+            return null!;
         }
 
         var teams = new Dictionary<int, TeamInfo>
-            {
-                { 0, new TeamInfo { Name = "Terrorists", Score = (int)serverInfo.ScoreTerrorists } },
-                { 1, new TeamInfo { Name = "Special Forces", Score = (int) serverInfo.ScoreSpecialForces } }
-            };
+        {
+            { 0, new TeamInfo { Name = "Terrorists", Score = (int)serverInfo.ScoreTerrorists! } },
+            { 1, new TeamInfo { Name = "Special Forces", Score = (int)serverInfo.ScoreSpecialForces! } }
+        };
 
         foreach (var player in players)
         {
@@ -200,6 +198,37 @@ public class QueryUdpService : IQueryUdpService
         }
 
         return teams.Values.ToList();
+    }
+
+    public async Task SavePlayersAsync(List<Player> players)
+    {
+        foreach (var player in players)
+        {
+            if (string.IsNullOrWhiteSpace(player.Name)) continue;
+
+            var existing = await context.PlayerStats.FindAsync(player.Name);
+
+            if (existing == null)
+            {
+                context.PlayerStats.Add(new PlayerStat
+                {
+                    Name = player.Name,
+                    Kills = player.Frags ?? 0,
+                    Deaths = player.Deaths ?? 0,
+                    Score = player.Score ?? 0,
+                    KillsDeaths = (player.Frags ?? 0) - (player.Deaths ?? 0)
+                });
+            }
+            else
+            {
+                existing.Kills = player.Frags ?? 0;
+                existing.Deaths = player.Deaths ?? 0;
+                existing.Score = player.Score ?? 0;
+                existing.KillsDeaths = (player.Frags ?? 0) - (player.Deaths ?? 0);
+            }
+        }
+
+        await context.SaveChangesAsync();
     }
 
     private static ServerInfo ParseServerInfo(string response)
@@ -240,22 +269,20 @@ public class QueryUdpService : IQueryUdpService
             {
                 var playerIndex = parts[i].Split('_')[1];
 
-                if (!string.IsNullOrEmpty(playerIndex))
+                if (string.IsNullOrEmpty(playerIndex)) continue;
+                var player = new Player
                 {
-                    var player = new Player
-                    {
-                        Name = GetValue(parts, $"player_{playerIndex}"),
-                        Frags = SafeParseInt(GetValue(parts, $"frags_{playerIndex}")),
-                        Deaths = SafeParseInt(GetValue(parts, $"deaths_{playerIndex}")),
-                        Score = SafeParseInt(GetValue(parts, $"score_{playerIndex}")),
-                        Ping = SafeParseInt(GetValue(parts, $"ping_{playerIndex}")),
-                        Team = SafeParseInt(GetValue(parts, $"team_{playerIndex}")),
-                        Mesh = GetValue(parts, $"mesh_{playerIndex}"),
-                        Skin = GetValue(parts, $"skin_{playerIndex}"),
-                        Health = SafeParseInt(GetValue(parts, $"health_{playerIndex}")),
-                    };
-                    players.Add(player);
-                }                    
+                    Name = GetValue(parts, $"player_{playerIndex}"),
+                    Frags = SafeParseInt(GetValue(parts, $"frags_{playerIndex}")),
+                    Deaths = SafeParseInt(GetValue(parts, $"deaths_{playerIndex}")),
+                    Score = SafeParseInt(GetValue(parts, $"score_{playerIndex}")),
+                    Ping = SafeParseInt(GetValue(parts, $"ping_{playerIndex}")),
+                    Team = SafeParseInt(GetValue(parts, $"team_{playerIndex}")),
+                    Mesh = GetValue(parts, $"mesh_{playerIndex}"),
+                    Skin = GetValue(parts, $"skin_{playerIndex}"),
+                    Health = SafeParseInt(GetValue(parts, $"health_{playerIndex}")),
+                };
+                players.Add(player);
             }
         }
 
@@ -264,20 +291,20 @@ public class QueryUdpService : IQueryUdpService
 
     private static string GetValue(string[] parts, string key)
     {
-        for (int i = 0; i < parts.Length - 1; i++)
+        for (var i = 0; i < parts.Length - 1; i++)
         {
             if (parts[i] == key)
             {
                 return parts[i + 1];
             }
         }
-        return null;
+
+        return null!;
     }
 
     private static int SafeParseInt(string value)
     {
         return int.TryParse(value, out var result) ? result : 0;
     }
+    
 }
-
-

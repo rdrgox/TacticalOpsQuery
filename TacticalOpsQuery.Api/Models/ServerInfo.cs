@@ -61,4 +61,8 @@ public class ServerInfo
 
     [SwaggerSchema("does the server have a password?")]
     public string Password { get; set; } = string.Empty;
+    
+    public long LatencyMs { get; set; }
+    
+    
 }

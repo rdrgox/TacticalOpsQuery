@@ -11,4 +11,6 @@ public interface IQueryUdpService
     Task<ServerStatus?> QueryStatusAsync(string ip, int port, int timeOut);
 
     Task<List<TeamInfo>> QueryTeamsAsync(string ip, int port, int timeOut);
+    
+    Task SavePlayersAsync(List<Player> players);
 }

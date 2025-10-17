@@ -5,6 +5,8 @@ VisualStudioVersion = 17.10.35201.131
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TacticalOpsQuery.Api", "TacticalOpsQuery.Api\TacticalOpsQuery.Api.csproj", "{8E9E89B8-E3B7-4829-8741-876C709D38CA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TacticalOpsQuery.Latencia", "TacticalOpsQuery.Latencia\TacticalOpsQuery.Latencia.csproj", "{ED8F42C9-7FB0-41A1-AD86-5A997C72349E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{8E9E89B8-E3B7-4829-8741-876C709D38CA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8E9E89B8-E3B7-4829-8741-876C709D38CA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8E9E89B8-E3B7-4829-8741-876C709D38CA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ED8F42C9-7FB0-41A1-AD86-5A997C72349E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ED8F42C9-7FB0-41A1-AD86-5A997C72349E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ED8F42C9-7FB0-41A1-AD86-5A997C72349E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ED8F42C9-7FB0-41A1-AD86-5A997C72349E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
